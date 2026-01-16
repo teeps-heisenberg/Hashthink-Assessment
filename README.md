@@ -218,6 +218,8 @@ The application processes audio files through a sequential pipeline:
 - `limit`: Maximum results to return (1-50, default: 10)
 - `embeddingType`: Search `'transcript'` or `'summary'` embeddings (default: `'summary'`)
 
+**Current Implementation**: The backend API supports searching by both `'transcript'` and `'summary'` embedding types. Currently, the frontend UI searches only by `'summary'` embeddings by default. The `'transcript'` option is available via the API but not exposed in the UI at this time.
+
 **Performance**:
 
 - **RPC Method**: Fast, uses database index, minimal network transfer (~10KB)

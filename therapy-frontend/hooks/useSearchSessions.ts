@@ -15,6 +15,8 @@ interface UseSearchSessionsReturn {
   hasSearched: boolean;
 }
 
+const DEBOUNCE_DELAY = 500; // Increased to 500ms for better UX
+
 /**
  * Custom hook for semantic search across sessions
  */
@@ -50,7 +52,7 @@ export function useSearchSessions(): UseSearchSessionsReturn {
       setResults(response.sessions);
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Search failed';
+        err instanceof Error ? err.message : 'Search failed. Please try again.';
       setError(errorMessage);
       setResults([]);
     } finally {
@@ -68,15 +70,22 @@ export function useSearchSessions(): UseSearchSessionsReturn {
         clearTimeout(debounceTimerRef.current);
       }
 
-      // Only search if query is valid
+      // Update query immediately for UI responsiveness
+      setQuery(searchQuery);
+
+      // Clear results and error if query is too short
       if (!searchQuery.trim() || searchQuery.trim().length < 3) {
+        setResults([]);
+        setHasSearched(false);
+        setError(null);
+        setIsSearching(false);
         return;
       }
 
       // Set new timer for debounced search
       debounceTimerRef.current = setTimeout(() => {
         performSearch(searchQuery);
-      }, 300);
+      }, DEBOUNCE_DELAY);
     },
     [performSearch],
   );
@@ -89,6 +98,7 @@ export function useSearchSessions(): UseSearchSessionsReturn {
     setResults([]);
     setError(null);
     setHasSearched(false);
+    setIsSearching(false);
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
