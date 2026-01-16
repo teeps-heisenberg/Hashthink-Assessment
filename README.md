@@ -311,10 +311,23 @@ uploading → transcribing → summarizing → vectorizing → completed
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Supabase account and project
+- Supabase account
 - OpenAI API key
 
+### Database Setup
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Navigate to **SQL Editor** in your Supabase dashboard
+3. Run the SQL schema from `therapy-backend/database/schema.sql`
+4. Verify that the following were created:
+   - `sessions` table
+   - `session_embeddings` table
+   - `vector` extension enabled
+   - Indexes and functions created
+
 ### Environment Setup
+
+After setting up the database, configure your environment variables with the credentials from your Supabase project.
 
 **Backend** (`therapy-backend/.env`):
 
@@ -325,7 +338,7 @@ OPENAI_WHISPER_MODEL=whisper-1
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_SUMMARY_MODEL=gpt-4o-mini
 
-# Supabase
+# Supabase (get these from your project settings)
 SUPABASE_URL=your_supabase_url
 SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
@@ -345,12 +358,6 @@ ALLOWED_MIME_TYPES=audio/mpeg,audio/wav,audio/mp3,audio/m4a,audio/webm
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
-
-### Database Setup
-
-1. Create a Supabase project
-2. Run the SQL schema from `therapy-backend/database/schema.sql` in Supabase SQL Editor
-3. Verify tables and pgvector extension are created
 
 ### Installation
 

@@ -25,14 +25,11 @@ function handleError(error: unknown): never {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<ApiError>;
     
-    // Try to get error message from response
     let message = axiosError.response?.data?.message || axiosError.message;
     
-    // Handle specific error cases
     if (axiosError.response?.status === 413) {
       message = 'File is too large. Maximum file size is 100MB.';
     } else if (axiosError.response?.status === 400) {
-      // Bad request - use the message from backend
       message = message || 'Invalid request. Please check your file and try again.';
     } else if (axiosError.response?.status === 500) {
       message = 'Server error. Please try again later.';
@@ -59,7 +56,7 @@ export async function uploadSession(file: File): Promise<UploadResponse> {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      timeout: 300000, // 5 minutes timeout for large file uploads
+      timeout: 300000,
     });
 
     return response.data;

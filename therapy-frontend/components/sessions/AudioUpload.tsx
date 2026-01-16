@@ -64,10 +64,8 @@ export default function AudioUpload({ onUpload, isUploading, error }: AudioUploa
   const [dropzoneError, setDropzoneError] = useState<string | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
-    // Clear previous errors
     setDropzoneError(null);
     
-    // Handle rejected files
     if (rejectedFiles.length > 0) {
       const errorMessage = getFileRejectionErrorMessage(rejectedFiles[0]);
       setDropzoneError(errorMessage);
@@ -75,7 +73,6 @@ export default function AudioUpload({ onUpload, isUploading, error }: AudioUploa
       return;
     }
 
-    // Handle accepted files
     if (acceptedFiles.length > 0) {
       setSelectedFile(acceptedFiles[0]);
       setUploadSuccess(false);
@@ -101,7 +98,6 @@ export default function AudioUpload({ onUpload, isUploading, error }: AudioUploa
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    // Clear any previous errors
     setDropzoneError(null);
 
     try {
@@ -112,7 +108,7 @@ export default function AudioUpload({ onUpload, isUploading, error }: AudioUploa
         setUploadSuccess(false);
       }, 2000);
     } catch {
-      // Error is handled by parent component
+      // Error handled by parent
     }
   };
 
@@ -122,7 +118,6 @@ export default function AudioUpload({ onUpload, isUploading, error }: AudioUploa
     setDropzoneError(null);
   };
 
-  // Combine dropzone errors and upload errors
   const displayError = dropzoneError || error;
 
   return (

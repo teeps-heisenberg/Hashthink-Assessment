@@ -15,7 +15,7 @@ interface UseSearchSessionsReturn {
   hasSearched: boolean;
 }
 
-const DEBOUNCE_DELAY = 500; // Increased to 500ms for better UX
+const DEBOUNCE_DELAY = 500;
 
 /**
  * Custom hook for semantic search across sessions
@@ -65,15 +65,12 @@ export function useSearchSessions(): UseSearchSessionsReturn {
    */
   const search = useCallback(
     (searchQuery: string) => {
-      // Clear existing timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
-      // Update query immediately for UI responsiveness
       setQuery(searchQuery);
 
-      // Clear results and error if query is too short
       if (!searchQuery.trim() || searchQuery.trim().length < 3) {
         setResults([]);
         setHasSearched(false);
@@ -82,7 +79,6 @@ export function useSearchSessions(): UseSearchSessionsReturn {
         return;
       }
 
-      // Set new timer for debounced search
       debounceTimerRef.current = setTimeout(() => {
         performSearch(searchQuery);
       }, DEBOUNCE_DELAY);
