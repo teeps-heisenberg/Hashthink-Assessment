@@ -9,7 +9,9 @@ import {
   UploadSessionResponse,
   SessionResponse,
   ListSessionsResponse,
+  SearchSessionsResponse,
 } from './dto/session-response.dto';
+import { SearchSessionsDto } from './dto/search-sessions.dto';
 
 @Injectable()
 export class SessionsService {
@@ -148,6 +150,59 @@ export class SessionsService {
       limit,
       offset,
     };
+  }
+
+  /**
+   * Search sessions using semantic search
+   */
+  async searchSessions(dto: SearchSessionsDto): Promise<SearchSessionsResponse> {
+    this.logger.log(
+      `Starting semantic search: query="${dto.query}", limit=${dto.limit}, embeddingType=${dto.embeddingType}`,
+    );
+
+    try {
+      // Convert query to embedding
+      const queryEmbedding = await this.vectorizationService.vectorizeQuery(
+        dto.query,
+      );
+      this.logger.log(`Query vectorized: ${queryEmbedding.length} dimensions`);
+
+      // Perform semantic search
+      const searchResults = await this.databaseService.semanticSearch(
+        queryEmbedding,
+        dto.limit || 10,
+        dto.embeddingType || 'summary',
+      );
+
+      this.logger.log(`Search completed: ${searchResults.length} results found`);
+
+      if (searchResults.length === 0) {
+        this.logger.warn(
+          `No results found for query: "${dto.query}". This could mean: 1) No embeddings exist, 2) Similarity threshold too high, 3) No matching content.`,
+        );
+      }
+
+      // Map results to response format
+      const sessions = searchResults.map((result) => ({
+        session: this.mapToResponse(result.session, true),
+        similarity: result.similarity,
+      }));
+
+      return {
+        sessions,
+        query: dto.query,
+        total: sessions.length,
+        limit: dto.limit || 10,
+        embeddingType: dto.embeddingType || 'summary',
+      };
+    } catch (error) {
+      this.logger.error(`Semantic search failed: ${error}`);
+      throw new Error(
+        error instanceof Error
+          ? `Search failed: ${error.message}`
+          : 'Search failed',
+      );
+    }
   }
 
   /**

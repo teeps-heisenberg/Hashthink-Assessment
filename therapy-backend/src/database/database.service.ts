@@ -251,20 +251,35 @@ export class DatabaseService implements OnModuleInit {
       );
     }
 
-    const vectorString = `[${queryEmbedding.join(',')}]`;
-
     // Use pgvector cosine similarity search
-    const { data, error } = await this.supabase.rpc('match_session_embeddings', {
-      query_embedding: vectorString,
-      match_threshold: 0.5,
+    // Try passing as array first (Supabase should handle conversion)
+    let result = await this.supabase.rpc('match_session_embeddings', {
+      query_embedding: queryEmbedding, // Pass as array
+      match_threshold: 0.3, // Lower threshold from 0.5 to 0.3 (30%)
       match_count: limit,
       embedding_type: embeddingType,
     });
 
-    if (error) {
-      // If function doesn't exist, fall back to manual query
+    // If RPC fails with array format, try with string format
+    if (result.error && result.error.message?.includes('vector')) {
       this.logger.warn(
-        `Semantic search function not found, using fallback: ${error.message}`,
+        `RPC call failed with array format, trying string format: ${result.error.message}`,
+      );
+      const vectorString = `[${queryEmbedding.join(',')}]`;
+      result = await this.supabase.rpc('match_session_embeddings', {
+        query_embedding: vectorString,
+        match_threshold: 0.3,
+        match_count: limit,
+        embedding_type: embeddingType,
+      });
+    }
+
+    const { data, error } = result;
+
+    if (error) {
+      // If function doesn't exist or both formats failed, fall back to manual query
+      this.logger.warn(
+        `Semantic search RPC function not found or failed, using manual calculation fallback: ${error.message}`,
       );
       return this.fallbackSemanticSearch(
         queryEmbedding,
@@ -273,9 +288,17 @@ export class DatabaseService implements OnModuleInit {
       );
     }
 
+    // RPC function succeeded
+    this.logger.log(
+      `Semantic search using RPC function (match_session_embeddings): found ${data.length} matches for embedding type '${embeddingType}'`,
+    );
+
     // Fetch sessions for matched embeddings
     const sessionIds = data.map((item: any) => item.session_id);
     if (sessionIds.length === 0) {
+      this.logger.warn(
+        `No sessions found with similarity > 0.3 for embedding type: ${embeddingType}`,
+      );
       return [];
     }
 
@@ -314,6 +337,11 @@ export class DatabaseService implements OnModuleInit {
     limit: number,
     embeddingType: 'transcript' | 'summary',
   ): Promise<Array<{ session: Session; similarity: number }>> {
+    this.logger.log(
+      `Starting manual calculation for semantic search (embedding type: '${embeddingType}', limit: ${limit})`,
+    );
+    const matchThreshold = 0.3; // Lower threshold
+
     // Get all embeddings of the specified type
     const { data: embeddings, error } = await this.supabase
       .from('session_embeddings')
@@ -323,6 +351,11 @@ export class DatabaseService implements OnModuleInit {
     if (error) {
       this.logger.error(`Failed to fetch embeddings: ${error.message}`);
       throw new Error(`Failed to fetch embeddings: ${error.message}`);
+    }
+
+    if (!embeddings || embeddings.length === 0) {
+      this.logger.warn(`No embeddings found for type: ${embeddingType}`);
+      return [];
     }
 
     // Calculate cosine similarity for each embedding
@@ -335,9 +368,27 @@ export class DatabaseService implements OnModuleInit {
       };
     });
 
-    // Sort by similarity and get top results
-    similarities.sort((a, b) => b.similarity - a.similarity);
-    const topResults = similarities.slice(0, limit);
+    // Filter by threshold and sort by similarity
+    const filteredSimilarities = similarities
+      .filter((s) => s.similarity > matchThreshold)
+      .sort((a, b) => b.similarity - a.similarity);
+
+    const topResults = filteredSimilarities.slice(0, limit);
+
+    this.logger.log(
+      `Fallback search: ${embeddings.length} total embeddings, ${filteredSimilarities.length} above threshold ${matchThreshold}, returning ${topResults.length} results`,
+    );
+
+    if (topResults.length === 0) {
+      this.logger.warn(
+        `No results above similarity threshold ${matchThreshold}. Highest similarity was: ${
+          similarities.length > 0
+            ? Math.max(...similarities.map((s) => s.similarity)).toFixed(3)
+            : 'N/A'
+        }`,
+      );
+      return [];
+    }
 
     // Fetch sessions
     const sessionIds = topResults.map((r) => r.session_id);

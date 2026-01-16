@@ -36,6 +36,17 @@ export interface ListSessionsResponse {
 }
 
 /**
+ * Response DTO for semantic search
+ */
+export interface SearchSessionsResponse {
+  sessions: Array<{ session: SessionResponse; similarity: number }>;
+  query: string;
+  total: number;
+  limit: number;
+  embeddingType: 'transcript' | 'summary';
+}
+
+/**
  * Error response DTO
  */
 export interface ErrorResponse {

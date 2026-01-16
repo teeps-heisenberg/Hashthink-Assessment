@@ -51,12 +51,14 @@ Hashthink-Assessment/
 ### Key Components
 
 **Frontend:**
+
 - **Audio Upload**: Drag-and-drop interface using `react-dropzone`
 - **Session Management**: List view with expandable cards
 - **Real-time Updates**: Polling mechanism for processing status
 - **UI Components**: Reusable components with Tailwind CSS
 
 **Backend:**
+
 - **Sessions Module**: Orchestrates the entire processing pipeline
 - **Transcription Module**: Handles audio-to-text conversion
 - **Summarization Module**: Generates session summaries
@@ -74,18 +76,19 @@ The application uses **Supabase (PostgreSQL)** with the **pgvector** extension f
 
 Stores therapy session metadata and processed content:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key, auto-generated |
-| `created_at` | TIMESTAMP | Session creation timestamp |
-| `updated_at` | TIMESTAMP | Last update timestamp (auto-updated) |
-| `transcript` | TEXT | Full transcription with speaker labels |
-| `summary` | TEXT | AI-generated session summary |
-| `status` | TEXT | Processing status: `uploading`, `transcribing`, `summarizing`, `vectorizing`, `completed`, `failed` |
-| `speakers` | JSONB | Array of identified speaker names |
-| `metadata` | JSONB | Additional metadata (file info, processing times, etc.) |
+| Column       | Type      | Description                                                                                         |
+| ------------ | --------- | --------------------------------------------------------------------------------------------------- |
+| `id`         | UUID      | Primary key, auto-generated                                                                         |
+| `created_at` | TIMESTAMP | Session creation timestamp                                                                          |
+| `updated_at` | TIMESTAMP | Last update timestamp (auto-updated)                                                                |
+| `transcript` | TEXT      | Full transcription with speaker labels                                                              |
+| `summary`    | TEXT      | AI-generated session summary                                                                        |
+| `status`     | TEXT      | Processing status: `uploading`, `transcribing`, `summarizing`, `vectorizing`, `completed`, `failed` |
+| `speakers`   | JSONB     | Array of identified speaker names                                                                   |
+| `metadata`   | JSONB     | Additional metadata (file info, processing times, etc.)                                             |
 
 **Indexes:**
+
 - `idx_sessions_created_at`: For chronological sorting
 - `idx_sessions_status`: For filtering by status
 
@@ -93,15 +96,16 @@ Stores therapy session metadata and processed content:
 
 Stores vector embeddings for semantic search:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID | Primary key |
-| `session_id` | UUID | Foreign key to `sessions.id` |
-| `embedding` | vector(1536) | Vector embedding (text-embedding-3-small dimension) |
-| `embedding_type` | TEXT | Either `'transcript'` or `'summary'` |
-| `created_at` | TIMESTAMP | Embedding creation timestamp |
+| Column           | Type         | Description                                         |
+| ---------------- | ------------ | --------------------------------------------------- |
+| `id`             | UUID         | Primary key                                         |
+| `session_id`     | UUID         | Foreign key to `sessions.id`                        |
+| `embedding`      | vector(1536) | Vector embedding (text-embedding-3-small dimension) |
+| `embedding_type` | TEXT         | Either `'transcript'` or `'summary'`                |
+| `created_at`     | TIMESTAMP    | Embedding creation timestamp                        |
 
 **Indexes:**
+
 - `idx_session_embeddings_session_id`: For session lookups
 - `idx_session_embeddings_type`: For filtering by type
 - `idx_session_embeddings_vector`: IVFFlat index for cosine similarity search
@@ -126,10 +130,10 @@ The application processes audio files through a sequential pipeline:
 1. Audio file retrieved from temporary storage
 2. Sent to OpenAI Whisper API with `verbose_json` format
 3. Raw transcript extracted from response
-4. **Speaker Identification**: 
+4. **Speaker Identification**:
    - Pattern matching for explicit speaker labels
    - If none found, defaults to "Speaker 1" and "Speaker 2"
-5. **Transcript Formatting**: 
+5. **Transcript Formatting**:
    - Splits transcript into sentences
    - Groups 1-2 sentences per speaker turn
    - Attributes turns to speakers in rotation
@@ -153,6 +157,7 @@ The application processes audio files through a sequential pipeline:
 5. Stores summary in database
 
 **Prompt Strategy**:
+
 - Focuses on key insights, progress, and actionable items
 - Maintains confidentiality and professionalism
 - Temperature: 0.3 (for consistency)
@@ -175,11 +180,51 @@ The application processes audio files through a sequential pipeline:
 5. Updates session status to `completed`
 
 **Vector Details**:
+
 - Dimensions: 1536 (text-embedding-3-small)
 - Storage: PostgreSQL `vector` type via pgvector extension
 - Index: IVFFlat for efficient cosine similarity search
 
 **Output**: Two 1536-dimensional vectors per session
+
+### 4. Semantic Search
+
+**Service**: `SessionsService` (via `DatabaseService`)  
+**Endpoint**: `POST /api/sessions/search`  
+**Process**:
+
+1. User submits a text query (e.g., "patient discussing anxiety about work")
+2. **Query Vectorization**:
+   - Query text is converted to a 1536-dimensional embedding using `text-embedding-3-small`
+   - Same model used for session embeddings ensures compatibility
+3. **Similarity Search**:
+   - Two methods available (automatic fallback):
+     - **Primary Method (RPC)**: Uses PostgreSQL function `match_session_embeddings` with pgvector index
+       - Leverages IVFFlat index for fast approximate nearest neighbor search
+       - Calculates cosine similarity using optimized database operations
+       - Returns results above similarity threshold (0.3 = 30%)
+     - **Fallback Method (Manual)**: JavaScript-based calculation when RPC unavailable
+       - Fetches all embeddings of specified type
+       - Calculates cosine similarity for each embedding in application code
+       - Filters and sorts results in memory
+4. **Result Formatting**:
+   - Returns sessions ordered by similarity score (highest first)
+   - Includes similarity score (0.0 to 1.0) for each result
+   - Supports searching by `'transcript'` or `'summary'` embedding types
+
+**Search Parameters**:
+
+- `query`: Search text (3-500 characters, required)
+- `limit`: Maximum results to return (1-50, default: 10)
+- `embeddingType`: Search `'transcript'` or `'summary'` embeddings (default: `'summary'`)
+
+**Performance**:
+
+- **RPC Method**: Fast, uses database index, minimal network transfer (~10KB)
+- **Manual Method**: Slower, processes all embeddings, higher network transfer (~15MB+)
+- Similarity threshold: 0.3 (30%) - only results above this threshold are returned
+
+**Output**: Array of sessions with similarity scores, ordered by relevance
 
 ### Processing Status Flow
 
@@ -194,21 +239,25 @@ uploading → transcribing → summarizing → vectorizing → completed
 ### Assumptions
 
 1. **Speaker Identification**:
+
    - Assumes 2-person conversations (therapist + client)
    - Uses heuristic-based attribution (sentence grouping, question detection)
    - No true speaker diarization (OpenAI Whisper doesn't provide this)
 
 2. **File Storage**:
+
    - Audio files stored in-memory during processing only
    - Files cleaned up after processing completes
    - No persistent file storage (not required per constraints)
 
 3. **Processing**:
+
    - Synchronous processing pipeline (not background jobs)
    - Client receives immediate response, processing continues asynchronously
    - Status updates via polling (every 3 seconds)
 
 4. **Scalability**:
+
    - Single-instance deployment assumed
    - No distributed processing or queue system
    - Suitable for small-to-medium scale usage
@@ -221,26 +270,31 @@ uploading → transcribing → summarizing → vectorizing → completed
 ### Tradeoffs
 
 1. **Speaker Attribution Accuracy**:
+
    - **Tradeoff**: Heuristic-based approach vs. true speaker diarization
    - **Reason**: OpenAI Whisper doesn't provide speaker diarization; would require additional service (e.g., AssemblyAI, Deepgram)
    - **Impact**: Speaker labels are approximate but functional for display
 
 2. **In-Memory File Storage**:
+
    - **Tradeoff**: Temporary storage vs. persistent object storage
    - **Reason**: Simplicity, no additional infrastructure needed
    - **Impact**: Files lost on server restart; acceptable for assessment scope
 
 3. **Synchronous Processing**:
+
    - **Tradeoff**: Immediate response vs. background job queue
    - **Reason**: Simpler implementation, no additional infrastructure
    - **Impact**: Processing happens in request context; acceptable for small scale
 
 4. **Polling vs. WebSockets**:
+
    - **Tradeoff**: HTTP polling vs. real-time WebSocket updates
    - **Reason**: Simpler implementation, no additional infrastructure
    - **Impact**: Slight delay in status updates (3 seconds); acceptable for assessment
 
 5. **Vector Storage**:
+
    - **Tradeoff**: pgvector in PostgreSQL vs. dedicated vector database
    - **Reason**: Single database, simpler architecture
    - **Impact**: Good performance for small-to-medium scale; may need optimization for large scale
@@ -261,6 +315,7 @@ uploading → transcribing → summarizing → vectorizing → completed
 ### Environment Setup
 
 **Backend** (`therapy-backend/.env`):
+
 ```env
 # OpenAI
 OPENAI_API_KEY=your_openai_key
@@ -284,6 +339,7 @@ ALLOWED_MIME_TYPES=audio/mpeg,audio/wav,audio/mp3,audio/m4a,audio/webm
 ```
 
 **Frontend** (`therapy-frontend/.env.local`):
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ```
@@ -297,6 +353,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api
 ### Installation
 
 **Backend**:
+
 ```bash
 cd therapy-backend
 npm install
@@ -304,6 +361,7 @@ npm run start:dev
 ```
 
 **Frontend**:
+
 ```bash
 cd therapy-frontend
 npm install

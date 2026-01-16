@@ -56,6 +56,25 @@ export interface ListSessionsResponse {
 }
 
 /**
+ * Search session with similarity score
+ */
+export type SearchSession = {
+  session: Session;
+  similarity: number;
+};
+
+/**
+ * Search sessions response
+ */
+export interface SearchSessionsResponse {
+  sessions: SearchSession[];
+  query: string;
+  total: number;
+  limit: number;
+  embeddingType: 'transcript' | 'summary';
+}
+
+/**
  * API error response
  */
 export interface ApiError {

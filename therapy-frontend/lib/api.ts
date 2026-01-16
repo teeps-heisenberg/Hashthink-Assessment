@@ -1,6 +1,12 @@
 import axios, { AxiosError } from 'axios';
 import { config } from './config';
-import { Session, UploadResponse, ListSessionsResponse, ApiError } from './types';
+import {
+  Session,
+  UploadResponse,
+  ListSessionsResponse,
+  SearchSessionsResponse,
+  ApiError,
+} from './types';
 
 /**
  * Axios instance with base configuration
@@ -67,6 +73,26 @@ export async function getSessions(
 export async function getSession(id: string): Promise<Session> {
   try {
     const response = await api.get<Session>(`/sessions/${id}`);
+    return response.data;
+  } catch (error) {
+    handleError(error);
+  }
+}
+
+/**
+ * Search sessions using semantic search
+ */
+export async function searchSessions(
+  query: string,
+  limit: number = 10,
+  embeddingType: 'transcript' | 'summary' = 'summary',
+): Promise<SearchSessionsResponse> {
+  try {
+    const response = await api.post<SearchSessionsResponse>('/sessions/search', {
+      query,
+      limit,
+      embeddingType,
+    });
     return response.data;
   } catch (error) {
     handleError(error);

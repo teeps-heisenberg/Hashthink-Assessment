@@ -83,7 +83,7 @@ $$;
 -- This function performs cosine similarity search using pgvector
 CREATE OR REPLACE FUNCTION match_session_embeddings(
   query_embedding vector(1536),
-  match_threshold float DEFAULT 0.5,
+  match_threshold float DEFAULT 0.3,
   match_count int DEFAULT 10,
   embedding_type text DEFAULT 'summary'
 )

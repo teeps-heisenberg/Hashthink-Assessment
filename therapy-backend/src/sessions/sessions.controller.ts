@@ -4,12 +4,14 @@ import {
   Get,
   Param,
   Query,
+  Body,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
   Logger,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -17,10 +19,12 @@ import { ConfigService } from '@nestjs/config';
 import { AppConfig } from '../config/config.interface';
 import { SessionsService } from './sessions.service';
 import { ListSessionsDto } from './dto/list-sessions.dto';
+import { SearchSessionsDto } from './dto/search-sessions.dto';
 import {
   UploadSessionResponse,
   SessionResponse,
   ListSessionsResponse,
+  SearchSessionsResponse,
 } from './dto/session-response.dto';
 import { isAudioMimeType } from '../file-upload/utils/file.util';
 
@@ -111,5 +115,35 @@ export class SessionsController {
   async getSession(@Param('id') id: string): Promise<SessionResponse> {
     this.logger.log(`Getting session: ${id}`);
     return this.sessionsService.getSession(id);
+  }
+
+  /**
+   * Search sessions using semantic search
+   * POST /api/sessions/search
+   */
+  @Post('search')
+  @HttpCode(HttpStatus.OK)
+  async searchSessions(
+    @Body() dto: SearchSessionsDto,
+  ): Promise<SearchSessionsResponse> {
+    this.logger.log(
+      `Received search request: query="${dto.query}", limit=${dto.limit}, embeddingType=${dto.embeddingType}`,
+    );
+
+    try {
+      const response = await this.sessionsService.searchSessions(dto);
+      this.logger.log(
+        `Search successful: ${response.total} results found for query "${dto.query}"`,
+      );
+      return response;
+    } catch (error) {
+      this.logger.error(`Search failed: ${error}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        error instanceof Error ? error.message : 'Search failed',
+      );
+    }
   }
 }
